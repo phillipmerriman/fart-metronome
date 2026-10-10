@@ -1,0 +1,137 @@
+import { classifyTick, nextPosition, tickInterval, type Subdivision, type TickType } from '../lib/tempo'
+import { SynthClickVoice, type SoundVoice } from './voices'
+
+const LOOKAHEAD_MS = 25
+const SCHEDULE_AHEAD_S = 0.1
+const START_DELAY_S = 0.05
+
+export interface Tick {
+  beat: number
+  sub: number
+  type: TickType
+  time: number
+  /** Monotonic count of ticks since start. */
+  index: number
+}
+
+export interface EngineSettings {
+  bpm: number
+  beatsPerBar: number
+  subdivision: Subdivision
+}
+
+/**
+ * Lookahead scheduler ("A Tale of Two Clocks"): a coarse JS timer queues ticks
+ * on the sample-accurate AudioContext clock slightly ahead of time.
+ */
+export class MetronomeEngine {
+  private ctx: AudioContext | null = null
+  private master: GainNode | null = null
+  private voice: SoundVoice
+  private settings: EngineSettings = { bpm: 120, beatsPerBar: 4, subdivision: 1 }
+  private volume = 0.8
+  private timer: number | null = null
+  private nextTime = 0
+  private beat = 0
+  private sub = 0
+  private index = 0
+  private pending: Tick[] = []
+
+  constructor(voice: SoundVoice = new SynthClickVoice()) {
+    this.voice = voice
+  }
+
+  get running() {
+    return this.timer !== null
+  }
+
+  setVoice(voice: SoundVoice) {
+    this.voice = voice
+  }
+
+  update(settings: Partial<EngineSettings>) {
+    this.settings = { ...this.settings, ...settings }
+  }
+
+  setVolume(volume: number) {
+    this.volume = volume
+    if (this.ctx && this.master) {
+      this.master.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.015)
+    }
+  }
+
+  async start() {
+    if (this.running) return
+    const ctx = this.ensureContext()
+    if (ctx.state !== 'running') await ctx.resume()
+    this.beat = 0
+    this.sub = 0
+    this.index = 0
+    this.pending = []
+    this.nextTime = ctx.currentTime + START_DELAY_S
+    this.schedule()
+  }
+
+  stop() {
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer)
+      this.timer = null
+    }
+    this.pending = []
+  }
+
+  /** Removes ticks whose time has arrived and returns the latest, for visuals. */
+  takeDueTick(): Tick | null {
+    if (!this.ctx) return null
+    const now = this.ctx.currentTime
+    let latest: Tick | null = null
+    while (this.pending.length && this.pending[0].time <= now) {
+      latest = this.pending.shift()!
+    }
+    return latest
+  }
+
+  dispose() {
+    this.stop()
+    void this.ctx?.close()
+    this.ctx = null
+    this.master = null
+  }
+
+  private ensureContext(): AudioContext {
+    if (!this.ctx) {
+      this.ctx = new AudioContext({ latencyHint: 'interactive' })
+      this.master = this.ctx.createGain()
+      this.master.gain.value = this.volume
+      this.master.connect(this.ctx.destination)
+    }
+    return this.ctx
+  }
+
+  private schedule = () => {
+    const ctx = this.ctx
+    const master = this.master
+    if (!ctx || !master) return
+    const { bpm, beatsPerBar, subdivision } = this.settings
+
+    // A throttled timer can leave us far behind; skip ahead rather than burst-play stale ticks.
+    if (this.nextTime < ctx.currentTime - SCHEDULE_AHEAD_S) {
+      this.nextTime = ctx.currentTime + START_DELAY_S
+    }
+
+    while (this.nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+      // Settings may have shrunk since the position was computed.
+      if (this.sub >= subdivision) {
+        this.sub = 0
+        this.beat += 1
+      }
+      if (this.beat >= beatsPerBar) this.beat = 0
+      const type = classifyTick(this.beat, this.sub)
+      this.voice.play(type, this.nextTime, ctx, master)
+      this.pending.push({ beat: this.beat, sub: this.sub, type, time: this.nextTime, index: this.index++ })
+      ;({ beat: this.beat, sub: this.sub } = nextPosition(this.beat, this.sub, beatsPerBar, subdivision))
+      this.nextTime += tickInterval(bpm, subdivision)
+    }
+    this.timer = window.setTimeout(this.schedule, LOOKAHEAD_MS)
+  }
+}
