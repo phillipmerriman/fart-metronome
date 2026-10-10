@@ -1,6 +1,6 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { BeatIndicator } from './components/BeatIndicator'
 import { BpmDial } from './components/BpmDial'
 import { ConsoleFrame } from './components/ConsoleFrame'
@@ -12,8 +12,8 @@ import { VolumeSlider } from './components/VolumeSlider'
 import { useMetronome } from './hooks/useMetronome'
 import { usePersistentState } from './hooks/usePersistentState'
 import { useTapTempo } from './hooks/useTapTempo'
-import { sanitizeSettings, SETTINGS_KEY, type Settings } from './lib/settings'
-import { clampBpm, findTimeSignature } from './lib/tempo'
+import { patternFor, sanitizeSettings, SETTINGS_KEY, type Settings } from './lib/settings'
+import { clampBpm, findTimeSignature, nextBeatLevel } from './lib/tempo'
 import { glowText, hud } from './theme'
 
 const SHORTCUTS = [
@@ -32,6 +32,7 @@ const OWNS_ARROWS = `${TEXT_ENTRY}, [role="slider"], input[type="range"]`
 export default function App() {
   const [settings, setSettings] = usePersistentState(SETTINGS_KEY, sanitizeSettings)
   const timeSig = findTimeSignature(settings.timeSig)
+  const pattern = useMemo(() => patternFor(settings.patterns, timeSig), [settings.patterns, timeSig])
 
   const patch = useCallback((change: Partial<Settings>) => setSettings((s) => ({ ...s, ...change })), [setSettings])
   const setBpm = useCallback((bpm: number) => patch({ bpm: clampBpm(bpm) }), [patch])
@@ -39,10 +40,19 @@ export default function App() {
     (delta: number) => setSettings((s) => ({ ...s, bpm: clampBpm(s.bpm + delta) })),
     [setSettings],
   )
+  const cycleBeat = useCallback(
+    (beat: number) =>
+      setSettings((s) => {
+        const ts = findTimeSignature(s.timeSig)
+        const next = patternFor(s.patterns, ts).map((level, i) => (i === beat ? nextBeatLevel(level) : level))
+        return { ...s, patterns: { ...s.patterns, [ts.id]: next } }
+      }),
+    [setSettings],
+  )
 
   const { running, tick, toggle } = useMetronome({
     bpm: settings.bpm,
-    beatsPerBar: timeSig.beats,
+    pattern,
     subdivision: settings.subdivision,
     volume: settings.volume,
   })
@@ -137,10 +147,16 @@ export default function App() {
                 onChange={setBpm}
                 tick={tick}
                 running={running}
-                beatsPerBar={timeSig.beats}
+                pattern={pattern}
                 subdivision={settings.subdivision}
               />
-              <BeatIndicator beats={timeSig.beats} subdivision={settings.subdivision} tick={tick} running={running} />
+              <BeatIndicator
+                pattern={pattern}
+                subdivision={settings.subdivision}
+                tick={tick}
+                running={running}
+                onCycle={cycleBeat}
+              />
               <TransportControls running={running} onToggle={toggle} onTap={tap} onNudge={nudge} />
             </Box>
           </ConsoleFrame>

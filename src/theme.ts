@@ -9,6 +9,7 @@ export const hud = {
   cyanFaint: 'rgba(63, 240, 255, 0.12)',
   amber: '#ffb83f',
   danger: '#ff4d5e',
+  muted: '#5d7282',
   text: '#cfefff',
   textDim: '#6f93a8',
   display: '"Orbitron", "Rajdhani", system-ui, sans-serif',

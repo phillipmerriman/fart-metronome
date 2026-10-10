@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeSettings, DEFAULT_SETTINGS } from './settings'
+import { sanitizeSettings, DEFAULT_SETTINGS, patternFor } from './settings'
 import {
   clampBpm,
   classifyTick,
+  defaultPattern,
+  nextBeatLevel,
   nextPosition,
   tapsToBpm,
   tempoName,
@@ -45,11 +47,23 @@ describe('tickInterval', () => {
 })
 
 describe('classifyTick', () => {
-  it('accents the downbeat only', () => {
-    expect(classifyTick(0, 0)).toBe('accent')
-    expect(classifyTick(2, 0)).toBe('beat')
-    expect(classifyTick(0, 1)).toBe('sub')
-    expect(classifyTick(3, 2)).toBe('sub')
+  it('follows the beat level on the beat and marks the rest as subdivisions', () => {
+    expect(classifyTick('accent', 0)).toBe('accent')
+    expect(classifyTick('normal', 0)).toBe('beat')
+    expect(classifyTick('mute', 0)).toBe('beat')
+    expect(classifyTick('accent', 1)).toBe('sub')
+    expect(classifyTick('normal', 2)).toBe('sub')
+  })
+})
+
+describe('beat patterns', () => {
+  it('accents only the downbeat by default', () => {
+    expect(defaultPattern(3)).toEqual(['accent', 'normal', 'normal'])
+  })
+  it('cycles normal → accent → mute → normal', () => {
+    expect(nextBeatLevel('normal')).toBe('accent')
+    expect(nextBeatLevel('accent')).toBe('mute')
+    expect(nextBeatLevel('mute')).toBe('normal')
   })
 })
 
@@ -58,7 +72,7 @@ describe('nextPosition', () => {
     const out: string[] = []
     let pos = { beat: 0, sub: 0 }
     for (let i = 0; i < steps; i++) {
-      out.push(classifyTick(pos.beat, pos.sub)[0])
+      out.push(classifyTick(defaultPattern(beats)[pos.beat], pos.sub)[0])
       pos = nextPosition(pos.beat, pos.sub, beats, subdivision)
     }
     return out.join('')
@@ -91,9 +105,21 @@ describe('tempoName', () => {
 describe('sanitizeSettings', () => {
   it('falls back to defaults for garbage', () => {
     expect(sanitizeSettings(null)).toEqual(DEFAULT_SETTINGS)
-    expect(sanitizeSettings({ bpm: 'fast', timeSig: '9/9', subdivision: 7, volume: 'x' })).toEqual(
-      DEFAULT_SETTINGS,
-    )
+    expect(
+      sanitizeSettings({ bpm: 'fast', timeSig: '9/9', subdivision: 7, volume: 'x', patterns: 'nope' }),
+    ).toEqual(DEFAULT_SETTINGS)
+  })
+  it('keeps only well-formed beat patterns', () => {
+    const { patterns } = sanitizeSettings({
+      patterns: {
+        '3/4': ['normal', 'accent', 'mute'],
+        '4/4': ['accent', 'normal'],
+        '2/4': ['accent', 'loud'],
+        '9/9': ['accent'],
+      },
+    })
+    expect(patterns).toEqual({ '3/4': ['normal', 'accent', 'mute'] })
+    expect(patternFor(patterns, { id: '4/4', beats: 4, unit: 4 })).toEqual(defaultPattern(4))
   })
   it('keeps and clamps valid values', () => {
     expect(sanitizeSettings({ bpm: 500, timeSig: '6/8', subdivision: 3, volume: 2 })).toEqual({
@@ -101,6 +127,7 @@ describe('sanitizeSettings', () => {
       timeSig: '6/8',
       subdivision: 3,
       volume: 1,
+      patterns: {},
     })
   })
 })

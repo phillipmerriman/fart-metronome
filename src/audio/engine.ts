@@ -1,4 +1,12 @@
-import { classifyTick, nextPosition, tickInterval, type Subdivision, type TickType } from '../lib/tempo'
+import {
+  classifyTick,
+  defaultPattern,
+  nextPosition,
+  tickInterval,
+  type BeatLevel,
+  type Subdivision,
+  type TickType,
+} from '../lib/tempo'
 import { SynthClickVoice, type SoundVoice } from './voices'
 
 const LOOKAHEAD_MS = 25
@@ -9,6 +17,8 @@ export interface Tick {
   beat: number
   sub: number
   type: TickType
+  /** The beat is muted: shown but not sounded. */
+  muted: boolean
   time: number
   /** Monotonic count of ticks since start. */
   index: number
@@ -16,7 +26,8 @@ export interface Tick {
 
 export interface EngineSettings {
   bpm: number
-  beatsPerBar: number
+  /** One level per beat; its length is the number of beats per bar. */
+  pattern: BeatLevel[]
   subdivision: Subdivision
 }
 
@@ -28,7 +39,7 @@ export class MetronomeEngine {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private voice: SoundVoice
-  private settings: EngineSettings = { bpm: 120, beatsPerBar: 4, subdivision: 1 }
+  private settings: EngineSettings = { bpm: 120, pattern: defaultPattern(4), subdivision: 1 }
   private volume = 0.8
   private timer: number | null = null
   private nextTime = 0
@@ -112,7 +123,8 @@ export class MetronomeEngine {
     const ctx = this.ctx
     const master = this.master
     if (!ctx || !master) return
-    const { bpm, beatsPerBar, subdivision } = this.settings
+    const { bpm, pattern, subdivision } = this.settings
+    const beatsPerBar = pattern.length
 
     // A throttled timer can leave us far behind; skip ahead rather than burst-play stale ticks.
     if (this.nextTime < ctx.currentTime - SCHEDULE_AHEAD_S) {
@@ -126,9 +138,11 @@ export class MetronomeEngine {
         this.beat += 1
       }
       if (this.beat >= beatsPerBar) this.beat = 0
-      const type = classifyTick(this.beat, this.sub)
-      this.voice.play(type, this.nextTime, ctx, master)
-      this.pending.push({ beat: this.beat, sub: this.sub, type, time: this.nextTime, index: this.index++ })
+      const level = pattern[this.beat]
+      const type = classifyTick(level, this.sub)
+      const muted = level === 'mute'
+      if (!muted) this.voice.play(type, this.nextTime, ctx, master)
+      this.pending.push({ beat: this.beat, sub: this.sub, type, muted, time: this.nextTime, index: this.index++ })
       ;({ beat: this.beat, sub: this.sub } = nextPosition(this.beat, this.sub, beatsPerBar, subdivision))
       this.nextTime += tickInterval(bpm, subdivision)
     }

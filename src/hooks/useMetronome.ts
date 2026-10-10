@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { MetronomeEngine, type Tick } from '../audio/engine'
-import type { Subdivision } from '../lib/tempo'
+import type { BeatLevel, Subdivision } from '../lib/tempo'
 
 interface Options {
   bpm: number
-  beatsPerBar: number
+  pattern: BeatLevel[]
   subdivision: Subdivision
   volume: number
 }
 
-export function useMetronome({ bpm, beatsPerBar, subdivision, volume }: Options) {
+export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
   const [engine] = useState(() => new MetronomeEngine())
   const [running, setRunning] = useState(false)
   const [tick, setTick] = useState<Tick | null>(null)
 
   useEffect(() => {
-    engine.update({ bpm, beatsPerBar, subdivision })
-  }, [engine, bpm, beatsPerBar, subdivision])
+    engine.update({ bpm, pattern, subdivision })
+  }, [engine, bpm, pattern, subdivision])
 
   useEffect(() => {
     engine.setVolume(volume)

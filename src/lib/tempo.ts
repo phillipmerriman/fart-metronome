@@ -5,6 +5,9 @@ const TAP_WINDOW = 5
 
 export type TickType = 'accent' | 'beat' | 'sub'
 export type Subdivision = 1 | 2 | 3 | 4
+export type BeatLevel = 'accent' | 'normal' | 'mute'
+
+export const BEAT_LEVELS: BeatLevel[] = ['accent', 'normal', 'mute']
 
 export interface TimeSignature {
   id: string
@@ -46,9 +49,19 @@ export function tickInterval(bpm: number, subdivision: Subdivision): number {
   return 60 / bpm / subdivision
 }
 
-export function classifyTick(beat: number, sub: number): TickType {
+export function defaultPattern(beats: number): BeatLevel[] {
+  return Array.from({ length: beats }, (_, i) => (i === 0 ? 'accent' : 'normal'))
+}
+
+const NEXT_LEVEL: Record<BeatLevel, BeatLevel> = { normal: 'accent', accent: 'mute', mute: 'normal' }
+
+export function nextBeatLevel(level: BeatLevel): BeatLevel {
+  return NEXT_LEVEL[level]
+}
+
+export function classifyTick(level: BeatLevel, sub: number): TickType {
   if (sub !== 0) return 'sub'
-  return beat === 0 ? 'accent' : 'beat'
+  return level === 'accent' ? 'accent' : 'beat'
 }
 
 /** Position after the given one, wrapping sub → beat → bar. Tolerates settings that shrank mid-bar. */
