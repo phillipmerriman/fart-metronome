@@ -127,6 +127,7 @@ describe('sanitizeSettings', () => {
       timeSig: '6/8',
       subdivision: 3,
       volume: 1,
+      timerMinutes: 0,
       patterns: {},
     })
   })

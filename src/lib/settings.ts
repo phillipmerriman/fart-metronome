@@ -8,12 +8,15 @@ import {
   type Subdivision,
   type TimeSignature,
 } from './tempo'
+import { clampTimerMinutes } from './timer'
 
 export interface Settings {
   bpm: number
   timeSig: string
   subdivision: Subdivision
   volume: number
+  /** Length of a timed run in minutes; 0 means the timer is off. */
+  timerMinutes: number
   /** Per-beat levels, keyed by time signature id; missing entries use the default pattern. */
   patterns: Record<string, BeatLevel[]>
 }
@@ -23,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   timeSig: '4/4',
   subdivision: 1,
   volume: 0.8,
+  timerMinutes: 0,
   patterns: {},
 }
 
@@ -59,6 +63,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       typeof r.volume === 'number' && Number.isFinite(r.volume)
         ? Math.min(1, Math.max(0, r.volume))
         : DEFAULT_SETTINGS.volume,
+    timerMinutes: typeof r.timerMinutes === 'number' ? clampTimerMinutes(r.timerMinutes) : 0,
     patterns: sanitizePatterns(r.patterns),
   }
 }
