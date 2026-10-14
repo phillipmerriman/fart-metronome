@@ -1,9 +1,11 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { useCallback, useEffect, useMemo } from 'react'
+import { findFartSound, findSound, SAMPLE_SOUNDS, SOUNDS } from './audio/sounds'
 import { BeatIndicator } from './components/BeatIndicator'
 import { BpmDial } from './components/BpmDial'
 import { ConsoleFrame } from './components/ConsoleFrame'
+import { SoundSelect } from './components/SoundSelect'
 import { Starfield } from './components/Starfield'
 import { SubdivisionSelect } from './components/SubdivisionSelect'
 import { TimeSignatureSelect } from './components/TimeSignatureSelect'
@@ -50,11 +52,15 @@ export default function App() {
     [setSettings],
   )
 
-  const { running, tick, toggle } = useMetronome({
+  const sound = findSound(settings.sound)
+  const fartSound = findFartSound(settings.fartSound)
+  const { running, tick, toggle, soundStatus, previewNextSound } = useMetronome({
     bpm: settings.bpm,
     pattern,
     subdivision: settings.subdivision,
     volume: settings.volume,
+    sound,
+    fartSound,
   })
   const tap = useTapTempo(setBpm)
 
@@ -173,7 +179,32 @@ export default function App() {
               </Box>
             </ConsoleFrame>
             <ConsoleFrame title="Audio systems" code="AUD-01">
-              <VolumeSlider value={settings.volume} onChange={(volume) => patch({ volume })} />
+              <Box sx={{ display: 'grid', gap: 2.5 }}>
+                <SoundSelect
+                  id="sound-label"
+                  label="Sound bank"
+                  sounds={SOUNDS}
+                  value={sound.id}
+                  status={soundStatus}
+                  onChange={(id) => {
+                    previewNextSound('main')
+                    patch({ sound: id })
+                  }}
+                />
+                {SAMPLE_SOUNDS.length > 0 && (
+                  <SoundSelect
+                    id="fart-sound-label"
+                    label="Fart beats"
+                    sounds={SAMPLE_SOUNDS}
+                    value={fartSound.id}
+                    onChange={(id) => {
+                      previewNextSound('fart')
+                      patch({ fartSound: id })
+                    }}
+                  />
+                )}
+                <VolumeSlider value={settings.volume} onChange={(volume) => patch({ volume })} />
+              </Box>
             </ConsoleFrame>
             <ConsoleFrame title="Input bindings" code="KEY-04">
               <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 1, columnGap: 2 }}>

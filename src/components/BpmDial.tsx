@@ -92,8 +92,8 @@ export function BpmDial({ bpm, onChange, tick, running, pattern, subdivision }: 
 
   const circumference = 2 * Math.PI * ARC_R
   const fraction = (bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)
-  const accentBeat = running && tick !== null && pattern[tick.beat] === 'accent'
-  const glowColor = accentBeat ? hud.amber : hud.cyan
+  const level = running && tick !== null ? pattern[tick.beat] : null
+  const glowColor = level === 'accent' ? hud.amber : level === 'fart' ? hud.fart : hud.cyan
   const barSeconds = (pattern.length * 60) / bpm
   const barKey = tick ? tick.index - (tick.beat * subdivision + tick.sub) : null
   const beatKey = tick ? tick.index - tick.sub : null
@@ -206,7 +206,7 @@ export function BpmDial({ bpm, onChange, tick, running, pattern, subdivision }: 
             cy={C}
             r={66}
             fill="none"
-            stroke={accentBeat ? hud.amber : hud.cyan}
+            stroke={glowColor}
             strokeWidth={3}
             className="hud-anim"
             style={{ transformOrigin: `${C}px ${C}px`, animation: 'hud-pulse 260ms ease-out forwards' }}

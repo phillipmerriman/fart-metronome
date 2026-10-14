@@ -11,12 +11,14 @@ const HEX = 'polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%)'
 const LEVEL_COLOR: Record<BeatLevel, string> = {
   accent: hud.amber,
   normal: hud.cyan,
+  fart: hud.fart,
   mute: hud.muted,
 }
 
 const LEVEL_NAME: Record<BeatLevel, string> = {
   accent: 'accented',
   normal: 'normal',
+  fart: 'fart',
   mute: 'muted',
 }
 
@@ -113,6 +115,10 @@ export function BeatIndicator({ pattern, subdivision, tick, running, onCycle }: 
         {' › '}
         <Box component="span" sx={{ color: hud.amber }}>
           accent
+        </Box>
+        {' › '}
+        <Box component="span" sx={{ color: hud.fart }}>
+          fart
         </Box>
         {' › '}
         <Box component="span" sx={{ color: hud.muted }}>

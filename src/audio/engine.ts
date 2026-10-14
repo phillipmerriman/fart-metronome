@@ -39,6 +39,8 @@ export class MetronomeEngine {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private voice: SoundVoice
+  /** Plays beats set to "fart", whatever the main voice is. */
+  private fartVoice: SoundVoice = new SynthClickVoice()
   private settings: EngineSettings = { bpm: 120, pattern: defaultPattern(4), subdivision: 1 }
   private volume = 0.8
   private timer: number | null = null
@@ -60,6 +62,10 @@ export class MetronomeEngine {
     this.voice = voice
   }
 
+  setFartVoice(voice: SoundVoice) {
+    this.fartVoice = voice
+  }
+
   update(settings: Partial<EngineSettings>) {
     this.settings = { ...this.settings, ...settings }
   }
@@ -69,6 +75,15 @@ export class MetronomeEngine {
     if (this.ctx && this.master) {
       this.master.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.015)
     }
+  }
+
+  /** Plays one hit of the main voice (as an accent) or the fart voice right away. */
+  async preview(which: 'main' | 'fart' = 'main') {
+    const ctx = this.ensureContext()
+    if (ctx.state !== 'running') await ctx.resume()
+    const time = ctx.currentTime + 0.01
+    if (which === 'fart') this.fartVoice.play('fart', time, ctx, this.master!)
+    else this.voice.play('accent', time, ctx, this.master!)
   }
 
   async start() {
@@ -141,7 +156,7 @@ export class MetronomeEngine {
       const level = pattern[this.beat]
       const type = classifyTick(level, this.sub)
       const muted = level === 'mute'
-      if (!muted) this.voice.play(type, this.nextTime, ctx, master)
+      if (!muted) (type === 'fart' ? this.fartVoice : this.voice).play(type, this.nextTime, ctx, master)
       this.pending.push({ beat: this.beat, sub: this.sub, type, muted, time: this.nextTime, index: this.index++ })
       ;({ beat: this.beat, sub: this.sub } = nextPosition(this.beat, this.sub, beatsPerBar, subdivision))
       this.nextTime += tickInterval(bpm, subdivision)

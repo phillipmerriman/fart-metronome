@@ -3,11 +3,11 @@ export const MAX_BPM = 300
 export const TAP_RESET_MS = 2000
 const TAP_WINDOW = 5
 
-export type TickType = 'accent' | 'beat' | 'sub'
+export type TickType = 'accent' | 'beat' | 'fart' | 'sub'
 export type Subdivision = 1 | 2 | 3 | 4
-export type BeatLevel = 'accent' | 'normal' | 'mute'
+export type BeatLevel = 'accent' | 'normal' | 'fart' | 'mute'
 
-export const BEAT_LEVELS: BeatLevel[] = ['accent', 'normal', 'mute']
+export const BEAT_LEVELS: BeatLevel[] = ['accent', 'normal', 'fart', 'mute']
 
 export interface TimeSignature {
   id: string
@@ -53,7 +53,7 @@ export function defaultPattern(beats: number): BeatLevel[] {
   return Array.from({ length: beats }, (_, i) => (i === 0 ? 'accent' : 'normal'))
 }
 
-const NEXT_LEVEL: Record<BeatLevel, BeatLevel> = { normal: 'accent', accent: 'mute', mute: 'normal' }
+const NEXT_LEVEL: Record<BeatLevel, BeatLevel> = { normal: 'accent', accent: 'fart', fart: 'mute', mute: 'normal' }
 
 export function nextBeatLevel(level: BeatLevel): BeatLevel {
   return NEXT_LEVEL[level]
@@ -61,7 +61,8 @@ export function nextBeatLevel(level: BeatLevel): BeatLevel {
 
 export function classifyTick(level: BeatLevel, sub: number): TickType {
   if (sub !== 0) return 'sub'
-  return level === 'accent' ? 'accent' : 'beat'
+  if (level === 'accent' || level === 'fart') return level
+  return 'beat'
 }
 
 /** Position after the given one, wrapping sub → beat → bar. Tolerates settings that shrank mid-bar. */

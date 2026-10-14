@@ -51,6 +51,8 @@ describe('classifyTick', () => {
     expect(classifyTick('accent', 0)).toBe('accent')
     expect(classifyTick('normal', 0)).toBe('beat')
     expect(classifyTick('mute', 0)).toBe('beat')
+    expect(classifyTick('fart', 0)).toBe('fart')
+    expect(classifyTick('fart', 1)).toBe('sub')
     expect(classifyTick('accent', 1)).toBe('sub')
     expect(classifyTick('normal', 2)).toBe('sub')
   })
@@ -60,9 +62,10 @@ describe('beat patterns', () => {
   it('accents only the downbeat by default', () => {
     expect(defaultPattern(3)).toEqual(['accent', 'normal', 'normal'])
   })
-  it('cycles normal → accent → mute → normal', () => {
+  it('cycles normal → accent → fart → mute → normal', () => {
     expect(nextBeatLevel('normal')).toBe('accent')
-    expect(nextBeatLevel('accent')).toBe('mute')
+    expect(nextBeatLevel('accent')).toBe('fart')
+    expect(nextBeatLevel('fart')).toBe('mute')
     expect(nextBeatLevel('mute')).toBe('normal')
   })
 })
@@ -112,13 +115,13 @@ describe('sanitizeSettings', () => {
   it('keeps only well-formed beat patterns', () => {
     const { patterns } = sanitizeSettings({
       patterns: {
-        '3/4': ['normal', 'accent', 'mute'],
+        '3/4': ['normal', 'fart', 'mute'],
         '4/4': ['accent', 'normal'],
         '2/4': ['accent', 'loud'],
         '9/9': ['accent'],
       },
     })
-    expect(patterns).toEqual({ '3/4': ['normal', 'accent', 'mute'] })
+    expect(patterns).toEqual({ '3/4': ['normal', 'fart', 'mute'] })
     expect(patternFor(patterns, { id: '4/4', beats: 4, unit: 4 })).toEqual(defaultPattern(4))
   })
   it('keeps and clamps valid values', () => {
@@ -127,6 +130,8 @@ describe('sanitizeSettings', () => {
       timeSig: '6/8',
       subdivision: 3,
       volume: 1,
+      sound: 'click',
+      fartSound: '',
       patterns: {},
     })
   })
