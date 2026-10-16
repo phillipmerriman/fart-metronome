@@ -7,7 +7,7 @@ import {
   type Subdivision,
   type TickType,
 } from '../lib/tempo'
-import { playChime, SynthClickVoice, type SoundVoice } from './voices'
+import { BufferClickVoice, playChime, type SoundVoice } from './voices'
 
 const LOOKAHEAD_MS = 25
 const SCHEDULE_AHEAD_S = 0.1
@@ -52,7 +52,7 @@ export class MetronomeEngine {
   private chimeScheduled = false
   private onEnded: (() => void) | null = null
 
-  constructor(voice: SoundVoice = new SynthClickVoice()) {
+  constructor(voice: SoundVoice = new BufferClickVoice()) {
     this.voice = voice
   }
 
