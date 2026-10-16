@@ -9,25 +9,60 @@ export type BeatLevel = 'accent' | 'normal' | 'mute'
 
 export const BEAT_LEVELS: BeatLevel[] = ['accent', 'normal', 'mute']
 
+export type NoteValue = 1 | 2 | 4 | 8 | 16 | 32
+
+export const NOTE_VALUES: NoteValue[] = [1, 2, 4, 8, 16, 32]
+export const MIN_BEATS = 1
+export const MAX_BEATS = 16
+
 export interface TimeSignature {
   id: string
   beats: number
-  unit: 4 | 8
+  unit: NoteValue
 }
 
-export const TIME_SIGNATURES: TimeSignature[] = [
-  { id: '2/4', beats: 2, unit: 4 },
-  { id: '3/4', beats: 3, unit: 4 },
-  { id: '4/4', beats: 4, unit: 4 },
-  { id: '5/4', beats: 5, unit: 4 },
-  { id: '6/8', beats: 6, unit: 8 },
-  { id: '7/8', beats: 7, unit: 8 },
-]
+export const DEFAULT_TIME_SIGNATURE: TimeSignature = { id: '4/4', beats: 4, unit: 4 }
 
 export const SUBDIVISIONS: Subdivision[] = [1, 2, 3, 4]
 
+export function clampBeats(beats: number): number {
+  if (!Number.isFinite(beats)) return DEFAULT_TIME_SIGNATURE.beats
+  return Math.min(MAX_BEATS, Math.max(MIN_BEATS, Math.round(beats)))
+}
+
+export function makeTimeSignature(beats: number, unit: NoteValue): TimeSignature {
+  const b = clampBeats(beats)
+  return { id: `${b}/${unit}`, beats: b, unit }
+}
+
+/** Parses an id like "7/8"; null unless both parts are in range. */
+export function parseTimeSignature(id: string): TimeSignature | null {
+  const m = /^(\d+)\/(\d+)$/.exec(id)
+  if (!m) return null
+  const beats = Number(m[1])
+  const unit = Number(m[2]) as NoteValue
+  if (beats < MIN_BEATS || beats > MAX_BEATS || !NOTE_VALUES.includes(unit)) return null
+  return { id, beats, unit }
+}
+
 export function findTimeSignature(id: string): TimeSignature {
-  return TIME_SIGNATURES.find((ts) => ts.id === id) ?? TIME_SIGNATURES[2]
+  return parseTimeSignature(id) ?? DEFAULT_TIME_SIGNATURE
+}
+
+const NOTE_NAMES: Record<number, string> = {
+  1: 'Whole',
+  2: 'Half',
+  4: 'Quarter',
+  8: '8th',
+  16: '16th',
+  32: '32nd',
+  64: '64th',
+  128: '128th',
+}
+
+/** Name of the note that is 1/value of a whole note, e.g. 8 → "8th". */
+export function noteName(value: number): string {
+  return NOTE_NAMES[value] ?? `1/${value}`
 }
 
 export function clampBpm(bpm: number): number {

@@ -4,8 +4,12 @@ import {
   clampBpm,
   classifyTick,
   defaultPattern,
+  findTimeSignature,
+  makeTimeSignature,
   nextBeatLevel,
   nextPosition,
+  noteName,
+  parseTimeSignature,
   tapsToBpm,
   tempoName,
   tickInterval,
@@ -93,6 +97,29 @@ describe('nextPosition', () => {
   })
 })
 
+describe('time signatures', () => {
+  it('parses beats over a supported note value', () => {
+    expect(parseTimeSignature('7/8')).toEqual({ id: '7/8', beats: 7, unit: 8 })
+    expect(parseTimeSignature('16/32')).toEqual({ id: '16/32', beats: 16, unit: 32 })
+    expect(parseTimeSignature('1/1')).toEqual({ id: '1/1', beats: 1, unit: 1 })
+  })
+  it('rejects out-of-range or malformed ids', () => {
+    for (const id of ['0/4', '17/4', '4/3', '4/64', '4/', 'x/4', ' 4/4']) {
+      expect(parseTimeSignature(id)).toBeNull()
+    }
+    expect(findTimeSignature('9/9').id).toBe('4/4')
+  })
+  it('clamps beats when building one', () => {
+    expect(makeTimeSignature(0, 2).id).toBe('1/2')
+    expect(makeTimeSignature(40, 16).id).toBe('16/16')
+  })
+  it('names note values', () => {
+    expect(noteName(4)).toBe('Quarter')
+    expect(noteName(32)).toBe('32nd')
+    expect(noteName(128)).toBe('128th')
+  })
+})
+
 describe('tempoName', () => {
   it('names tempos', () => {
     expect(tempoName(30)).toBe('GRAVE')
@@ -116,17 +143,19 @@ describe('sanitizeSettings', () => {
         '4/4': ['accent', 'normal'],
         '2/4': ['accent', 'loud'],
         '9/9': ['accent'],
+        '2/16': ['mute', 'accent'],
       },
     })
-    expect(patterns).toEqual({ '3/4': ['normal', 'accent', 'mute'] })
+    expect(patterns).toEqual({ '3/4': ['normal', 'accent', 'mute'], '2/16': ['mute', 'accent'] })
     expect(patternFor(patterns, { id: '4/4', beats: 4, unit: 4 })).toEqual(defaultPattern(4))
   })
   it('keeps and clamps valid values', () => {
-    expect(sanitizeSettings({ bpm: 500, timeSig: '6/8', subdivision: 3, volume: 2 })).toEqual({
+    expect(sanitizeSettings({ bpm: 500, timeSig: '11/16', subdivision: 3, volume: 2 })).toEqual({
       bpm: 300,
-      timeSig: '6/8',
+      timeSig: '11/16',
       subdivision: 3,
       volume: 1,
+      timerMinutes: 0,
       patterns: {},
     })
   })

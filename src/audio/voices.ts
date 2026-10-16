@@ -26,3 +26,21 @@ export class SynthClickVoice implements SoundVoice {
     osc.stop(time + tone.duration + 0.01)
   }
 }
+
+/** A short rising three-note "mission complete" chime. */
+export function playChime(ctx: BaseAudioContext, destination: AudioNode, time: number) {
+  const notes = [880, 1108.73, 1318.51]
+  notes.forEach((freq, i) => {
+    const start = time + i * 0.14
+    const osc = ctx.createOscillator()
+    const env = ctx.createGain()
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(freq, start)
+    env.gain.setValueAtTime(0, start)
+    env.gain.linearRampToValueAtTime(0.6, start + 0.01)
+    env.gain.exponentialRampToValueAtTime(0.0001, start + (i === notes.length - 1 ? 0.6 : 0.2))
+    osc.connect(env).connect(destination)
+    osc.start(start)
+    osc.stop(start + 0.65)
+  })
+}
