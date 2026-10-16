@@ -2,8 +2,8 @@ import {
   BEAT_LEVELS,
   clampBpm,
   defaultPattern,
+  parseTimeSignature,
   SUBDIVISIONS,
-  TIME_SIGNATURES,
   type BeatLevel,
   type Subdivision,
   type TimeSignature,
@@ -39,10 +39,10 @@ export function patternFor(patterns: Settings['patterns'], ts: TimeSignature): B
 function sanitizePatterns(raw: unknown): Settings['patterns'] {
   if (typeof raw !== 'object' || raw === null) return {}
   const out: Settings['patterns'] = {}
-  for (const ts of TIME_SIGNATURES) {
-    const p = (raw as Record<string, unknown>)[ts.id]
-    if (Array.isArray(p) && p.length === ts.beats && p.every((l) => BEAT_LEVELS.includes(l as BeatLevel))) {
-      out[ts.id] = p as BeatLevel[]
+  for (const [id, p] of Object.entries(raw)) {
+    const ts = parseTimeSignature(id)
+    if (ts && Array.isArray(p) && p.length === ts.beats && p.every((l) => BEAT_LEVELS.includes(l as BeatLevel))) {
+      out[id] = p as BeatLevel[]
     }
   }
   return out
@@ -53,7 +53,7 @@ export function sanitizeSettings(raw: unknown): Settings {
   return {
     bpm: typeof r.bpm === 'number' ? clampBpm(r.bpm) : DEFAULT_SETTINGS.bpm,
     timeSig:
-      typeof r.timeSig === 'string' && TIME_SIGNATURES.some((ts) => ts.id === r.timeSig)
+      typeof r.timeSig === 'string' && parseTimeSignature(r.timeSig)
         ? r.timeSig
         : DEFAULT_SETTINGS.timeSig,
     subdivision: SUBDIVISIONS.includes(r.subdivision as Subdivision)

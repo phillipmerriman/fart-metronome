@@ -177,7 +177,7 @@ export default function App() {
           <Box sx={{ display: 'grid', gap: { xs: 2, md: 3 } }}>
             <ConsoleFrame title="Configuration" code="CFG-02">
               <Box sx={{ display: 'grid', gap: 2.5 }}>
-                <TimeSignatureSelect value={timeSig.id} onChange={(timeSig) => patch({ timeSig })} />
+                <TimeSignatureSelect value={timeSig} onChange={(timeSig) => patch({ timeSig })} />
                 <SubdivisionSelect
                   value={settings.subdivision}
                   unit={timeSig.unit}
