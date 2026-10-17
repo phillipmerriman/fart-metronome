@@ -10,6 +10,7 @@ export const hud = {
   amber: '#ffb83f',
   danger: '#ff4d5e',
   muted: '#5d7282',
+  fart: '#9dff3a',
   text: '#cfefff',
   textDim: '#6f93a8',
   display: '"Orbitron", "Rajdhani", system-ui, sans-serif',

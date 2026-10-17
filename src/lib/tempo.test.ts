@@ -6,7 +6,6 @@ import {
   defaultPattern,
   findTimeSignature,
   makeTimeSignature,
-  nextBeatLevel,
   nextPosition,
   noteName,
   parseTimeSignature,
@@ -55,6 +54,8 @@ describe('classifyTick', () => {
     expect(classifyTick('accent', 0)).toBe('accent')
     expect(classifyTick('normal', 0)).toBe('beat')
     expect(classifyTick('mute', 0)).toBe('beat')
+    expect(classifyTick('fart:a.mp3', 0)).toBe('fart')
+    expect(classifyTick('fart:a.mp3', 1)).toBe('sub')
     expect(classifyTick('accent', 1)).toBe('sub')
     expect(classifyTick('normal', 2)).toBe('sub')
   })
@@ -63,11 +64,6 @@ describe('classifyTick', () => {
 describe('beat patterns', () => {
   it('accents only the downbeat by default', () => {
     expect(defaultPattern(3)).toEqual(['accent', 'normal', 'normal'])
-  })
-  it('cycles normal → accent → mute → normal', () => {
-    expect(nextBeatLevel('normal')).toBe('accent')
-    expect(nextBeatLevel('accent')).toBe('mute')
-    expect(nextBeatLevel('mute')).toBe('normal')
   })
 })
 
@@ -139,14 +135,20 @@ describe('sanitizeSettings', () => {
   it('keeps only well-formed beat patterns', () => {
     const { patterns } = sanitizeSettings({
       patterns: {
-        '3/4': ['normal', 'accent', 'mute'],
+        '3/4': ['normal', 'fart:a.mp3', 'mute'],
+        '5/4': ['accent', 'normal', 'fart', 'normal', 'normal'],
         '4/4': ['accent', 'normal'],
         '2/4': ['accent', 'loud'],
         '9/9': ['accent'],
         '2/16': ['mute', 'accent'],
       },
+      fartSound: 'b.mp3',
     })
-    expect(patterns).toEqual({ '3/4': ['normal', 'accent', 'mute'], '2/16': ['mute', 'accent'] })
+    expect(patterns).toEqual({
+      '3/4': ['normal', 'fart:a.mp3', 'mute'],
+      '5/4': ['accent', 'normal', 'fart:b.mp3', 'normal', 'normal'],
+      '2/16': ['mute', 'accent'],
+    })
     expect(patternFor(patterns, { id: '4/4', beats: 4, unit: 4 })).toEqual(defaultPattern(4))
   })
   it('keeps and clamps valid values', () => {

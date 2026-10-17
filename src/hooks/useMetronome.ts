@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { MetronomeEngine, type Tick } from '../audio/engine'
-import type { BeatLevel, Subdivision } from '../lib/tempo'
+import { findFartSound, loadVoice } from '../audio/sounds'
+import { fartSoundId, type BeatLevel, type Subdivision } from '../lib/tempo'
 
 interface Options {
   bpm: number
@@ -9,6 +10,15 @@ interface Options {
   volume: number
   /** Length of the next run in seconds, or null for an untimed run. */
   timerSeconds: number | null
+}
+
+/** Loads the recording a fart sound id refers to (stale ids fall back to the first sample) into the engine. */
+async function loadFartVoice(engine: MetronomeEngine, id: string) {
+  try {
+    engine.setFartVoice(id, await loadVoice(findFartSound(id)))
+  } catch (error) {
+    console.error(`Could not load fart sound "${id}"`, error)
+  }
 }
 
 export function useMetronome({ bpm, pattern, subdivision, volume, timerSeconds }: Options) {
@@ -27,6 +37,14 @@ export function useMetronome({ bpm, pattern, subdivision, volume, timerSeconds }
   useEffect(() => {
     engine.setVolume(volume)
   }, [engine, volume])
+
+  // loadVoice caches, so re-running this on every pattern edit is cheap.
+  useEffect(() => {
+    for (const level of new Set(pattern)) {
+      const id = fartSoundId(level)
+      if (id !== null) void loadFartVoice(engine, id)
+    }
+  }, [engine, pattern])
 
   useEffect(() => () => engine.dispose(), [engine])
 
@@ -81,5 +99,15 @@ export function useMetronome({ bpm, pattern, subdivision, volume, timerSeconds }
     else void start()
   }, [engine, start, stop])
 
-  return { running, tick, remaining, completed, start, stop, toggle }
+  /** Plays one beat at the given level, once its recording has loaded, unless the metronome is running. */
+  const preview = useCallback(
+    async (level: BeatLevel) => {
+      const id = fartSoundId(level)
+      if (id !== null) await loadFartVoice(engine, id)
+      if (!engine.running) await engine.preview(level)
+    },
+    [engine],
+  )
+
+  return { running, tick, remaining, completed, start, stop, toggle, preview }
 }

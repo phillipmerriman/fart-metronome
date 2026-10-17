@@ -14,7 +14,7 @@ import { useMetronome } from './hooks/useMetronome'
 import { usePersistentState } from './hooks/usePersistentState'
 import { useTapTempo } from './hooks/useTapTempo'
 import { patternFor, sanitizeSettings, SETTINGS_KEY, type Settings } from './lib/settings'
-import { clampBpm, findTimeSignature, nextBeatLevel } from './lib/tempo'
+import { clampBpm, findTimeSignature, type BeatLevel } from './lib/tempo'
 import { formatClock } from './lib/timer'
 import { glowText, hud } from './theme'
 
@@ -29,7 +29,9 @@ function matches(target: EventTarget | null, selector: string) {
   return target instanceof Element && target.closest(selector) !== null
 }
 const TEXT_ENTRY = 'input:not([type="range"]), textarea, select'
-const OWNS_ARROWS = `${TEXT_ENTRY}, [role="slider"], input[type="range"]`
+// An open menu handles its own arrow and type-ahead keys.
+const MENU = '[role="menu"]'
+const OWNS_ARROWS =`${TEXT_ENTRY}, [role="slider"], input[type="range"]`
 
 export default function App() {
   const [settings, setSettings] = usePersistentState(SETTINGS_KEY, sanitizeSettings)
@@ -42,23 +44,24 @@ export default function App() {
     (delta: number) => setSettings((s) => ({ ...s, bpm: clampBpm(s.bpm + delta) })),
     [setSettings],
   )
-  const cycleBeat = useCallback(
-    (beat: number) =>
-      setSettings((s) => {
-        const ts = findTimeSignature(s.timeSig)
-        const next = patternFor(s.patterns, ts).map((level, i) => (i === beat ? nextBeatLevel(level) : level))
-        return { ...s, patterns: { ...s.patterns, [ts.id]: next } }
-      }),
-    [setSettings],
-  )
-
-  const { running, tick, remaining, completed, toggle } = useMetronome({
+  const { running, tick, remaining, completed, toggle, preview } = useMetronome({
     bpm: settings.bpm,
     pattern,
     subdivision: settings.subdivision,
     volume: settings.volume,
     timerSeconds: settings.timerMinutes > 0 ? settings.timerMinutes * 60 : null,
   })
+  const setBeat = useCallback(
+    (beat: number, level: BeatLevel) => {
+      setSettings((s) => {
+        const ts = findTimeSignature(s.timeSig)
+        const next = patternFor(s.patterns, ts).map((l, i) => (i === beat ? level : l))
+        return { ...s, patterns: { ...s.patterns, [ts.id]: next } }
+      })
+      void preview(level)
+    },
+    [setSettings, preview],
+  )
   const tap = useTapTempo(setBpm)
   const countdown = running && remaining !== null ? formatClock(remaining) : null
 
@@ -68,7 +71,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || matches(e.target, TEXT_ENTRY)) return
+      if (e.ctrlKey || e.metaKey || e.altKey || matches(e.target, TEXT_ENTRY) || matches(e.target, MENU)) return
       if (e.code === 'Space') {
         e.preventDefault()
         if (!e.repeat) toggle()
@@ -168,7 +171,7 @@ export default function App() {
                 subdivision={settings.subdivision}
                 tick={tick}
                 running={running}
-                onCycle={cycleBeat}
+                onChange={setBeat}
               />
               <TransportControls running={running} onToggle={toggle} onTap={tap} onNudge={nudge} />
             </Box>

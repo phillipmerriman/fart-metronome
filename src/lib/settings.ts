@@ -1,7 +1,8 @@
 import {
-  BEAT_LEVELS,
   clampBpm,
   defaultPattern,
+  fartLevel,
+  isBeatLevel,
   parseTimeSignature,
   SUBDIVISIONS,
   type BeatLevel,
@@ -17,7 +18,7 @@ export interface Settings {
   volume: number
   /** Length of a timed run in minutes; 0 means the timer is off. */
   timerMinutes: number
-  /** Per-beat levels, keyed by time signature id; missing entries use the default pattern. */
+  /** Per-beat sounds, keyed by time signature id; missing entries use the default pattern. */
   patterns: Record<string, BeatLevel[]>
 }
 
@@ -36,14 +37,15 @@ export function patternFor(patterns: Settings['patterns'], ts: TimeSignature): B
   return patterns[ts.id] ?? defaultPattern(ts.beats)
 }
 
-function sanitizePatterns(raw: unknown): Settings['patterns'] {
+/** `legacyFartSound` upgrades saved patterns from when every "fart" beat shared one recording. */
+function sanitizePatterns(raw: unknown, legacyFartSound: string): Settings['patterns'] {
   if (typeof raw !== 'object' || raw === null) return {}
   const out: Settings['patterns'] = {}
   for (const [id, p] of Object.entries(raw)) {
     const ts = parseTimeSignature(id)
-    if (ts && Array.isArray(p) && p.length === ts.beats && p.every((l) => BEAT_LEVELS.includes(l as BeatLevel))) {
-      out[id] = p as BeatLevel[]
-    }
+    if (!ts || !Array.isArray(p) || p.length !== ts.beats) continue
+    const levels = p.map((l) => (l === 'fart' ? fartLevel(legacyFartSound) : l))
+    if (levels.every(isBeatLevel)) out[id] = levels
   }
   return out
 }
@@ -64,6 +66,6 @@ export function sanitizeSettings(raw: unknown): Settings {
         ? Math.min(1, Math.max(0, r.volume))
         : DEFAULT_SETTINGS.volume,
     timerMinutes: typeof r.timerMinutes === 'number' ? clampTimerMinutes(r.timerMinutes) : 0,
-    patterns: sanitizePatterns(r.patterns),
+    patterns: sanitizePatterns(r.patterns, typeof r.fartSound === 'string' ? r.fartSound : ''),
   }
 }
