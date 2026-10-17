@@ -1,27 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { MetronomeEngine, type Tick } from '../audio/engine'
-import { loadVoice, type SoundOption } from '../audio/sounds'
-import { SynthClickVoice } from '../audio/voices'
-import type { BeatLevel, Subdivision } from '../lib/tempo'
-
-export type SoundStatus = 'loading' | 'ready' | 'error'
+import { findFartSound, loadVoice } from '../audio/sounds'
+import { fartSoundId, type BeatLevel, type Subdivision } from '../lib/tempo'
 
 interface Options {
   bpm: number
   pattern: BeatLevel[]
   subdivision: Subdivision
   volume: number
-  sound: SoundOption
-  fartSound: SoundOption
 }
 
-export function useMetronome({ bpm, pattern, subdivision, volume, sound, fartSound }: Options) {
+/** Loads the recording a fart sound id refers to (stale ids fall back to the first sample) into the engine. */
+async function loadFartVoice(engine: MetronomeEngine, id: string) {
+  try {
+    engine.setFartVoice(id, await loadVoice(findFartSound(id)))
+  } catch (error) {
+    console.error(`Could not load fart sound "${id}"`, error)
+  }
+}
+
+export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
   const [engine] = useState(() => new MetronomeEngine())
   const [running, setRunning] = useState(false)
   const [tick, setTick] = useState<Tick | null>(null)
-  const [loaded, setLoaded] = useState<{ id: string; ok: boolean } | null>(null)
-  const soundStatus: SoundStatus = loaded?.id !== sound.id ? 'loading' : loaded.ok ? 'ready' : 'error'
-  const previewPending = useRef<'main' | 'fart' | null>(null)
 
   useEffect(() => {
     engine.update({ bpm, pattern, subdivision })
@@ -31,46 +32,13 @@ export function useMetronome({ bpm, pattern, subdivision, volume, sound, fartSou
     engine.setVolume(volume)
   }, [engine, volume])
 
+  // loadVoice caches, so re-running this on every pattern edit is cheap.
   useEffect(() => {
-    let cancelled = false
-    loadVoice(sound).then(
-      (voice) => {
-        if (cancelled) return
-        engine.setVoice(voice)
-        setLoaded({ id: sound.id, ok: true })
-        if (previewPending.current === 'main' && !engine.running) void engine.preview('main')
-        previewPending.current = null
-      },
-      (error: unknown) => {
-        if (cancelled) return
-        console.error(`Could not load sound "${sound.id}"`, error)
-        engine.setVoice(new SynthClickVoice())
-        setLoaded({ id: sound.id, ok: false })
-        previewPending.current = null
-      },
-    )
-    return () => {
-      cancelled = true
+    for (const level of new Set(pattern)) {
+      const id = fartSoundId(level)
+      if (id !== null) void loadFartVoice(engine, id)
     }
-  }, [engine, sound])
-
-  useEffect(() => {
-    let cancelled = false
-    loadVoice(fartSound).then(
-      (voice) => {
-        if (cancelled) return
-        engine.setFartVoice(voice)
-        if (previewPending.current === 'fart' && !engine.running) void engine.preview('fart')
-        previewPending.current = null
-      },
-      (error: unknown) => {
-        if (!cancelled) console.error(`Could not load fart sound "${fartSound.id}"`, error)
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [engine, fartSound])
+  }, [engine, pattern])
 
   useEffect(() => () => engine.dispose(), [engine])
 
@@ -102,10 +70,15 @@ export function useMetronome({ bpm, pattern, subdivision, volume, sound, fartSou
     else void start()
   }, [engine, start, stop])
 
-  /** Preview the next main or fart sound once it has loaded (call when the user picks one). */
-  const previewNextSound = useCallback((which: 'main' | 'fart') => {
-    previewPending.current = which
-  }, [])
+  /** Plays one beat at the given level, once its recording has loaded, unless the metronome is running. */
+  const preview = useCallback(
+    async (level: BeatLevel) => {
+      const id = fartSoundId(level)
+      if (id !== null) await loadFartVoice(engine, id)
+      if (!engine.running) await engine.preview(level)
+    },
+    [engine],
+  )
 
-  return { running, tick, start, stop, toggle, soundStatus, previewNextSound }
+  return { running, tick, start, stop, toggle, preview }
 }

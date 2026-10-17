@@ -1,11 +1,9 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { useCallback, useEffect, useMemo } from 'react'
-import { findFartSound, findSound, SAMPLE_SOUNDS, SOUNDS } from './audio/sounds'
 import { BeatIndicator } from './components/BeatIndicator'
 import { BpmDial } from './components/BpmDial'
 import { ConsoleFrame } from './components/ConsoleFrame'
-import { SoundSelect } from './components/SoundSelect'
 import { Starfield } from './components/Starfield'
 import { SubdivisionSelect } from './components/SubdivisionSelect'
 import { TimeSignatureSelect } from './components/TimeSignatureSelect'
@@ -15,7 +13,7 @@ import { useMetronome } from './hooks/useMetronome'
 import { usePersistentState } from './hooks/usePersistentState'
 import { useTapTempo } from './hooks/useTapTempo'
 import { patternFor, sanitizeSettings, SETTINGS_KEY, type Settings } from './lib/settings'
-import { clampBpm, findTimeSignature, nextBeatLevel } from './lib/tempo'
+import { clampBpm, findTimeSignature, type BeatLevel } from './lib/tempo'
 import { glowText, hud } from './theme'
 
 const SHORTCUTS = [
@@ -29,7 +27,9 @@ function matches(target: EventTarget | null, selector: string) {
   return target instanceof Element && target.closest(selector) !== null
 }
 const TEXT_ENTRY = 'input:not([type="range"]), textarea, select'
-const OWNS_ARROWS = `${TEXT_ENTRY}, [role="slider"], input[type="range"]`
+// An open menu handles its own arrow and type-ahead keys.
+const MENU = '[role="menu"]'
+const OWNS_ARROWS =`${TEXT_ENTRY}, [role="slider"], input[type="range"]`
 
 export default function App() {
   const [settings, setSettings] = usePersistentState(SETTINGS_KEY, sanitizeSettings)
@@ -42,31 +42,28 @@ export default function App() {
     (delta: number) => setSettings((s) => ({ ...s, bpm: clampBpm(s.bpm + delta) })),
     [setSettings],
   )
-  const cycleBeat = useCallback(
-    (beat: number) =>
-      setSettings((s) => {
-        const ts = findTimeSignature(s.timeSig)
-        const next = patternFor(s.patterns, ts).map((level, i) => (i === beat ? nextBeatLevel(level) : level))
-        return { ...s, patterns: { ...s.patterns, [ts.id]: next } }
-      }),
-    [setSettings],
-  )
-
-  const sound = findSound(settings.sound)
-  const fartSound = findFartSound(settings.fartSound)
-  const { running, tick, toggle, soundStatus, previewNextSound } = useMetronome({
+  const { running, tick, toggle, preview } = useMetronome({
     bpm: settings.bpm,
     pattern,
     subdivision: settings.subdivision,
     volume: settings.volume,
-    sound,
-    fartSound,
   })
+  const setBeat = useCallback(
+    (beat: number, level: BeatLevel) => {
+      setSettings((s) => {
+        const ts = findTimeSignature(s.timeSig)
+        const next = patternFor(s.patterns, ts).map((l, i) => (i === beat ? level : l))
+        return { ...s, patterns: { ...s.patterns, [ts.id]: next } }
+      })
+      void preview(level)
+    },
+    [setSettings, preview],
+  )
   const tap = useTapTempo(setBpm)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || matches(e.target, TEXT_ENTRY)) return
+      if (e.ctrlKey || e.metaKey || e.altKey || matches(e.target, TEXT_ENTRY) || matches(e.target, MENU)) return
       if (e.code === 'Space') {
         e.preventDefault()
         if (!e.repeat) toggle()
@@ -161,7 +158,7 @@ export default function App() {
                 subdivision={settings.subdivision}
                 tick={tick}
                 running={running}
-                onCycle={cycleBeat}
+                onChange={setBeat}
               />
               <TransportControls running={running} onToggle={toggle} onTap={tap} onNudge={nudge} />
             </Box>
@@ -179,32 +176,7 @@ export default function App() {
               </Box>
             </ConsoleFrame>
             <ConsoleFrame title="Audio systems" code="AUD-01">
-              <Box sx={{ display: 'grid', gap: 2.5 }}>
-                <SoundSelect
-                  id="sound-label"
-                  label="Sound bank"
-                  sounds={SOUNDS}
-                  value={sound.id}
-                  status={soundStatus}
-                  onChange={(id) => {
-                    previewNextSound('main')
-                    patch({ sound: id })
-                  }}
-                />
-                {SAMPLE_SOUNDS.length > 0 && (
-                  <SoundSelect
-                    id="fart-sound-label"
-                    label="Fart beats"
-                    sounds={SAMPLE_SOUNDS}
-                    value={fartSound.id}
-                    onChange={(id) => {
-                      previewNextSound('fart')
-                      patch({ fartSound: id })
-                    }}
-                  />
-                )}
-                <VolumeSlider value={settings.volume} onChange={(volume) => patch({ volume })} />
-              </Box>
+              <VolumeSlider value={settings.volume} onChange={(volume) => patch({ volume })} />
             </ConsoleFrame>
             <ConsoleFrame title="Input bindings" code="KEY-04">
               <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 1, columnGap: 2 }}>

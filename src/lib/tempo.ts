@@ -5,9 +5,31 @@ const TAP_WINDOW = 5
 
 export type TickType = 'accent' | 'beat' | 'fart' | 'sub'
 export type Subdivision = 1 | 2 | 3 | 4
-export type BeatLevel = 'accent' | 'normal' | 'fart' | 'mute'
+/** What a beat plays: the synth click, an accented click, a specific fart recording, or nothing. */
+export type FartLevel = `fart:${string}`
+export type BeatLevel = 'accent' | 'normal' | 'mute' | FartLevel
 
-export const BEAT_LEVELS: BeatLevel[] = ['accent', 'normal', 'fart', 'mute']
+export function fartLevel(soundId: string): FartLevel {
+  return `fart:${soundId}`
+}
+
+export function isFartLevel(level: BeatLevel): level is FartLevel {
+  return level.startsWith('fart:')
+}
+
+/** Id of the recording a fart beat plays, or null for other levels. */
+export function fartSoundId(level: BeatLevel): string | null {
+  return isFartLevel(level) ? level.slice('fart:'.length) : null
+}
+
+export function isBeatLevel(value: unknown): value is BeatLevel {
+  return (
+    value === 'accent' ||
+    value === 'normal' ||
+    value === 'mute' ||
+    (typeof value === 'string' && value.startsWith('fart:'))
+  )
+}
 
 export interface TimeSignature {
   id: string
@@ -53,15 +75,10 @@ export function defaultPattern(beats: number): BeatLevel[] {
   return Array.from({ length: beats }, (_, i) => (i === 0 ? 'accent' : 'normal'))
 }
 
-const NEXT_LEVEL: Record<BeatLevel, BeatLevel> = { normal: 'accent', accent: 'fart', fart: 'mute', mute: 'normal' }
-
-export function nextBeatLevel(level: BeatLevel): BeatLevel {
-  return NEXT_LEVEL[level]
-}
-
 export function classifyTick(level: BeatLevel, sub: number): TickType {
   if (sub !== 0) return 'sub'
-  if (level === 'accent' || level === 'fart') return level
+  if (level === 'accent') return 'accent'
+  if (isFartLevel(level)) return 'fart'
   return 'beat'
 }
 
