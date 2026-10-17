@@ -8,6 +8,8 @@ interface Options {
   pattern: BeatLevel[]
   subdivision: Subdivision
   volume: number
+  /** Length of the next run in seconds, or null for an untimed run. */
+  timerSeconds: number | null
 }
 
 /** Loads the recording a fart sound id refers to (stale ids fall back to the first sample) into the engine. */
@@ -19,10 +21,14 @@ async function loadFartVoice(engine: MetronomeEngine, id: string) {
   }
 }
 
-export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
+export function useMetronome({ bpm, pattern, subdivision, volume, timerSeconds }: Options) {
   const [engine] = useState(() => new MetronomeEngine())
   const [running, setRunning] = useState(false)
   const [tick, setTick] = useState<Tick | null>(null)
+  /** Whole seconds left in a timed run; null when untimed or stopped. */
+  const [remaining, setRemaining] = useState<number | null>(null)
+  /** The last run ended because its timer ran out. */
+  const [completed, setCompleted] = useState(false)
 
   useEffect(() => {
     engine.update({ bpm, pattern, subdivision })
@@ -43,6 +49,26 @@ export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
   useEffect(() => () => engine.dispose(), [engine])
 
   useEffect(() => {
+    engine.setOnEnded(() => {
+      setRunning(false)
+      setTick(null)
+      setRemaining(null)
+      setCompleted(true)
+    })
+    return () => engine.setOnEnded(null)
+  }, [engine])
+
+  // An interval rather than animation frames, so the countdown keeps updating in background tabs.
+  useEffect(() => {
+    if (!running) return
+    const id = window.setInterval(() => {
+      const left = engine.timeRemaining()
+      setRemaining(left === null ? null : Math.ceil(left))
+    }, 250)
+    return () => window.clearInterval(id)
+  }, [engine, running])
+
+  useEffect(() => {
     if (!running) return
     let frame = 0
     const loop = () => {
@@ -55,14 +81,17 @@ export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
   }, [engine, running])
 
   const start = useCallback(async () => {
-    await engine.start()
+    await engine.start(timerSeconds)
+    setCompleted(false)
+    setRemaining(timerSeconds)
     setRunning(true)
-  }, [engine])
+  }, [engine, timerSeconds])
 
   const stop = useCallback(() => {
     engine.stop()
     setRunning(false)
     setTick(null)
+    setRemaining(null)
   }, [engine])
 
   const toggle = useCallback(() => {
@@ -80,5 +109,5 @@ export function useMetronome({ bpm, pattern, subdivision, volume }: Options) {
     [engine],
   )
 
-  return { running, tick, start, stop, toggle, preview }
+  return { running, tick, remaining, completed, start, stop, toggle, preview }
 }

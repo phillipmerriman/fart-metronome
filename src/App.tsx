@@ -5,6 +5,7 @@ import { BeatIndicator } from './components/BeatIndicator'
 import { BpmDial } from './components/BpmDial'
 import { ConsoleFrame } from './components/ConsoleFrame'
 import { Starfield } from './components/Starfield'
+import { TimerPanel } from './components/TimerPanel'
 import { SubdivisionSelect } from './components/SubdivisionSelect'
 import { TimeSignatureSelect } from './components/TimeSignatureSelect'
 import { TransportControls } from './components/TransportControls'
@@ -14,6 +15,7 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { useTapTempo } from './hooks/useTapTempo'
 import { patternFor, sanitizeSettings, SETTINGS_KEY, type Settings } from './lib/settings'
 import { clampBpm, findTimeSignature, type BeatLevel } from './lib/tempo'
+import { formatClock } from './lib/timer'
 import { glowText, hud } from './theme'
 
 const SHORTCUTS = [
@@ -42,11 +44,12 @@ export default function App() {
     (delta: number) => setSettings((s) => ({ ...s, bpm: clampBpm(s.bpm + delta) })),
     [setSettings],
   )
-  const { running, tick, toggle, preview } = useMetronome({
+  const { running, tick, remaining, completed, toggle, preview } = useMetronome({
     bpm: settings.bpm,
     pattern,
     subdivision: settings.subdivision,
     volume: settings.volume,
+    timerSeconds: settings.timerMinutes > 0 ? settings.timerMinutes * 60 : null,
   })
   const setBeat = useCallback(
     (beat: number, level: BeatLevel) => {
@@ -60,6 +63,11 @@ export default function App() {
     [setSettings, preview],
   )
   const tap = useTapTempo(setBpm)
+  const countdown = running && remaining !== null ? formatClock(remaining) : null
+
+  useEffect(() => {
+    document.title = countdown ? `${countdown} · Fart Metronome` : 'Fart Metronome'
+  }, [countdown])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,6 +140,11 @@ export default function App() {
             >
               {running ? 'Active' : 'Standby'}
             </Box>
+            {countdown && (
+              <Box component="span" sx={{ color: hud.amber, fontVariantNumeric: 'tabular-nums' }}>
+                T-{countdown}
+              </Box>
+            )}
           </Typography>
         </Box>
 
@@ -167,13 +180,22 @@ export default function App() {
           <Box sx={{ display: 'grid', gap: { xs: 2, md: 3 } }}>
             <ConsoleFrame title="Configuration" code="CFG-02">
               <Box sx={{ display: 'grid', gap: 2.5 }}>
-                <TimeSignatureSelect value={timeSig.id} onChange={(timeSig) => patch({ timeSig })} />
+                <TimeSignatureSelect value={timeSig} onChange={(timeSig) => patch({ timeSig })} />
                 <SubdivisionSelect
                   value={settings.subdivision}
                   unit={timeSig.unit}
                   onChange={(subdivision) => patch({ subdivision })}
                 />
               </Box>
+            </ConsoleFrame>
+            <ConsoleFrame title="Mission timer" code="TMR-03" active={countdown !== null}>
+              <TimerPanel
+                minutes={settings.timerMinutes}
+                onChange={(timerMinutes) => patch({ timerMinutes })}
+                running={running}
+                remaining={remaining}
+                completed={completed}
+              />
             </ConsoleFrame>
             <ConsoleFrame title="Audio systems" code="AUD-01">
               <VolumeSlider value={settings.volume} onChange={(volume) => patch({ volume })} />

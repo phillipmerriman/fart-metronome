@@ -8,7 +8,7 @@ import {
   type Subdivision,
   type TickType,
 } from '../lib/tempo'
-import { SynthClickVoice, type SoundVoice } from './voices'
+import { playChime, SynthClickVoice, type SoundVoice } from './voices'
 
 const LOOKAHEAD_MS = 25
 const SCHEDULE_AHEAD_S = 0.1
@@ -51,6 +51,10 @@ export class MetronomeEngine {
   private sub = 0
   private index = 0
   private pending: Tick[] = []
+  /** AudioContext time at which a timed run ends, or null for an untimed run. */
+  private stopAt: number | null = null
+  private chimeScheduled = false
+  private onEnded: (() => void) | null = null
 
   constructor(click: SoundVoice = new SynthClickVoice()) {
     this.click = click
@@ -62,6 +66,11 @@ export class MetronomeEngine {
 
   setFartVoice(soundId: string, voice: SoundVoice) {
     this.fartVoices.set(soundId, voice)
+  }
+
+  /** Called when a timed run reaches its end and stops itself. */
+  setOnEnded(callback: (() => void) | null) {
+    this.onEnded = callback
   }
 
   update(settings: Partial<EngineSettings>) {
@@ -84,7 +93,8 @@ export class MetronomeEngine {
     this.voiceFor(level, type).play(type, ctx.currentTime + 0.01, ctx, this.master!)
   }
 
-  async start() {
+  /** Starts ticking; with a duration, stops by itself (with a chime) after that many seconds. */
+  async start(durationSeconds: number | null = null) {
     if (this.running) return
     const ctx = this.ensureContext()
     if (ctx.state !== 'running') await ctx.resume()
@@ -93,6 +103,8 @@ export class MetronomeEngine {
     this.index = 0
     this.pending = []
     this.nextTime = ctx.currentTime + START_DELAY_S
+    this.stopAt = durationSeconds ? this.nextTime + durationSeconds : null
+    this.chimeScheduled = false
     this.schedule()
   }
 
@@ -102,6 +114,13 @@ export class MetronomeEngine {
       this.timer = null
     }
     this.pending = []
+    this.stopAt = null
+  }
+
+  /** Seconds left in a timed run, or null when untimed or stopped. */
+  timeRemaining(): number | null {
+    if (!this.ctx || this.stopAt === null || !this.running) return null
+    return Math.max(0, this.stopAt - this.ctx.currentTime)
   }
 
   /** Removes ticks whose time has arrived and returns the latest, for visuals. */
@@ -143,13 +162,20 @@ export class MetronomeEngine {
     if (!ctx || !master) return
     const { bpm, pattern, subdivision } = this.settings
     const beatsPerBar = pattern.length
+    const stopAt = this.stopAt
+
+    if (stopAt !== null && ctx.currentTime >= stopAt) {
+      this.stop()
+      this.onEnded?.()
+      return
+    }
 
     // A throttled timer can leave us far behind; skip ahead rather than burst-play stale ticks.
     if (this.nextTime < ctx.currentTime - SCHEDULE_AHEAD_S) {
       this.nextTime = ctx.currentTime + START_DELAY_S
     }
 
-    while (this.nextTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+    while (this.nextTime < ctx.currentTime + SCHEDULE_AHEAD_S && (stopAt === null || this.nextTime < stopAt)) {
       // Settings may have shrunk since the position was computed.
       if (this.sub >= subdivision) {
         this.sub = 0
@@ -163,6 +189,10 @@ export class MetronomeEngine {
       this.pending.push({ beat: this.beat, sub: this.sub, type, muted, time: this.nextTime, index: this.index++ })
       ;({ beat: this.beat, sub: this.sub } = nextPosition(this.beat, this.sub, beatsPerBar, subdivision))
       this.nextTime += tickInterval(bpm, subdivision)
+    }
+    if (stopAt !== null && !this.chimeScheduled && stopAt < ctx.currentTime + SCHEDULE_AHEAD_S) {
+      playChime(ctx, master, stopAt)
+      this.chimeScheduled = true
     }
     this.timer = window.setTimeout(this.schedule, LOOKAHEAD_MS)
   }

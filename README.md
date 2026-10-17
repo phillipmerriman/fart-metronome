@@ -5,7 +5,7 @@ A metronome with a sci-fi command-console UI, and farts.
 ## Features
 
 - Tempo from 30 to 300 BPM, set by dragging or scrolling the dial, the ±1 and ±5 buttons, the arrow keys, or tap tempo
-- Time signatures 2/4, 3/4, 4/4, 5/4, 6/8, and 7/8 (in /8 meters the BPM counts eighth notes)
+- Any time signature from 1 to 16 beats over a 1, 2, 4, 8, 16, or 32 note (the BPM counts the bottom note, e.g. eighths in 7/8)
 - Click a beat to pick its sound from a menu: click, accented click, any fart recording, or mute; each time signature keeps its own pattern
 - Subdivisions: ×1, ×2, triplets, and ×4
 - Volume control; all settings are saved in `localStorage`
