@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import { useCallback, useEffect, useMemo } from 'react'
 import { BeatIndicator } from './components/BeatIndicator'
@@ -10,6 +11,7 @@ import { SubdivisionSelect } from './components/SubdivisionSelect'
 import { TimeSignatureSelect } from './components/TimeSignatureSelect'
 import { TransportControls } from './components/TransportControls'
 import { VolumeSlider } from './components/VolumeSlider'
+import { useFullscreen } from './hooks/useFullscreen'
 import { useMetronome } from './hooks/useMetronome'
 import { usePersistentState } from './hooks/usePersistentState'
 import { useTapTempo } from './hooks/useTapTempo'
@@ -23,6 +25,7 @@ const SHORTCUTS = [
   ['T', 'Tap'],
   ['↑ ↓', '±1'],
   ['Shift', '±5'],
+  ['F', 'Fullscreen'],
 ]
 
 function matches(target: EventTarget | null, selector: string) {
@@ -63,6 +66,7 @@ export default function App() {
     [setSettings, preview],
   )
   const tap = useTapTempo(setBpm)
+  const { active: fullscreenActive, supported: canFullscreen, toggle: toggleFullscreen } = useFullscreen()
   const countdown = running && remaining !== null ? formatClock(remaining) : null
 
   useEffect(() => {
@@ -77,6 +81,8 @@ export default function App() {
         if (!e.repeat) toggle()
       } else if (e.key === 't' || e.key === 'T') {
         if (!e.repeat) tap()
+      } else if (e.key === 'f' || e.key === 'F') {
+        if (!e.repeat && canFullscreen) toggleFullscreen()
       } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !matches(e.target, OWNS_ARROWS)) {
         e.preventDefault()
         const step = e.shiftKey ? 5 : 1
@@ -93,7 +99,7 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [toggle, tap, nudge])
+  }, [toggle, tap, nudge, canFullscreen, toggleFullscreen])
 
   return (
     <>
@@ -146,6 +152,15 @@ export default function App() {
               </Box>
             )}
           </Typography>
+          {canFullscreen && (
+            <Button
+              onClick={toggleFullscreen}
+              aria-pressed={fullscreenActive}
+              sx={{ px: 1.5, py: 0.5, fontSize: 11 }}
+            >
+              {fullscreenActive ? 'Exit fullscreen' : 'Fullscreen'}
+            </Button>
+          )}
         </Box>
 
         <Box
